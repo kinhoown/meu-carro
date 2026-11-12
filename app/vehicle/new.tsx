@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Text } from 'react-native';
+import { AppearancePicker } from '@/components/AppearancePicker';
 import { SelectModal, type Option } from '@/components/SelectModal';
-import { Button, Card, colors, Field, Muted, Screen, SelectField, Title } from '@/components/ui';
+import { Button, Card, colors, Field, Muted, NumberField, Screen, SelectField, Title } from '@/components/ui';
 import { createVehicle } from '@/lib/db';
 import { getBrands, getDetail, getModels, getYears, type FipeDetail, type FipeItem } from '@/lib/fipe';
 import { formatPlate, isValidPlate, normalizePlate, parseNumber } from '@/lib/format';
+import { DEFAULT_COLOR, guessBody, type BodyType } from '@/lib/vehicleLook';
 
 type Step = 'brand' | 'model' | 'year';
 
@@ -18,6 +20,8 @@ export default function NewVehicle() {
   const [plate, setPlate] = useState('');
   const [nickname, setNickname] = useState('');
   const [km, setKm] = useState('');
+  const [look, setLook] = useState<{ body: BodyType; color: string }>({ body: 'hatch', color: DEFAULT_COLOR });
+  const [lookTouched, setLookTouched] = useState(false);
 
   const [brand, setBrand] = useState<Option>();
   const [model, setModel] = useState<Option>();
@@ -59,6 +63,7 @@ export default function NewVehicle() {
       setDetail(undefined);
     } else if (step === 'model') {
       setModel(o);
+      if (!lookTouched) setLook((l) => ({ ...l, body: guessBody(o.label) }));
       setYear(undefined);
       setDetail(undefined);
     } else if (step === 'year') {
@@ -90,7 +95,9 @@ export default function NewVehicle() {
         fipe_value: detail?.Valor ?? null,
         fipe_ref: detail?.MesReferencia?.trim() ?? null,
         vin: null,
-        current_km: parseNumber(km) ?? 0,
+        current_km: Math.round(parseNumber(km) ?? 0),
+        body: look.body,
+        color: look.color,
       });
       router.replace(`/vehicle/${v.id}`);
     } catch (e) {
@@ -113,7 +120,7 @@ export default function NewVehicle() {
           maxLength={8}
         />
         <Field label="Apelido (opcional)" placeholder="Ex.: Carro da família" value={nickname} onChangeText={setNickname} />
-        <Field label="Quilometragem atual" placeholder="45000" value={km} onChangeText={setKm} keyboardType="numeric" />
+        <NumberField kind="int" label="Quilometragem atual" placeholder="45.000" value={km} onChangeText={setKm} />
       </Card>
 
       <Card>
@@ -141,6 +148,19 @@ export default function NewVehicle() {
             </Muted>
           </>
         )}
+      </Card>
+
+      <Card>
+        <Title>Aparência</Title>
+        <Muted>O tipo é sugerido pelo modelo. Escolha a cor do seu carro.</Muted>
+        <AppearancePicker
+          body={look.body}
+          color={look.color}
+          onChange={(v) => {
+            setLookTouched(true);
+            setLook(v);
+          }}
+        />
       </Card>
 
       <Button title="Salvar veículo" onPress={save} loading={saving} />

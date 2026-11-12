@@ -10,6 +10,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import { maskInt, maskMoney } from '@/lib/format';
 
 export const colors = {
   bg: '#f4f5f7',
@@ -96,6 +97,71 @@ export function Field({
     <View style={[{ marginBottom: 12 }, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
       <TextInput placeholderTextColor={colors.muted} {...props} style={[styles.input, props.style]} />
+    </View>
+  );
+}
+
+/**
+ * Campo numérico com máscara brasileira enquanto digita:
+ * kind="int" -> 45.000 ; kind="money" -> 1.234,56 (com "R$" no rótulo).
+ */
+export function NumberField({
+  kind,
+  onChangeText,
+  ...props
+}: Omit<TextInputProps, 'keyboardType'> & {
+  label: string;
+  kind: 'int' | 'money';
+  containerStyle?: ViewStyle;
+  onChangeText: (text: string) => void;
+}) {
+  return (
+    <Field
+      {...props}
+      keyboardType="number-pad"
+      onChangeText={(t) => onChangeText(kind === 'money' ? maskMoney(t) : maskInt(t))}
+    />
+  );
+}
+
+/** Botões lado a lado para escolher uma opção (ex.: Preventiva | Corretiva). */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  style,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  style?: ViewStyle;
+}) {
+  return (
+    <View
+      style={[
+        { flexDirection: 'row', backgroundColor: '#e7eaf0', borderRadius: 10, padding: 3, marginBottom: 12 },
+        style,
+      ]}
+    >
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            style={{
+              flex: 1,
+              paddingVertical: 9,
+              borderRadius: 8,
+              alignItems: 'center',
+              backgroundColor: on ? colors.card : 'transparent',
+              elevation: on ? 1 : 0,
+            }}
+          >
+            <Text style={{ fontWeight: on ? '700' : '500', color: on ? colors.primary : colors.muted }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

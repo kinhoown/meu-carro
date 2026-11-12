@@ -40,6 +40,8 @@ function RootStack() {
         <Stack.Screen name="vehicle/new" options={{ title: 'Novo veículo' }} />
         <Stack.Screen name="vehicle/[id]/index" options={{ title: 'Veículo' }} />
         <Stack.Screen name="vehicle/[id]/maintenance" options={{ title: 'Manutenção' }} />
+        <Stack.Screen name="vehicle/[id]/plan" options={{ title: 'Plano' }} />
+        <Stack.Screen name="vehicle/[id]/mod" options={{ title: 'Estética' }} />
         <Stack.Screen name="vehicle/[id]/obd" options={{ title: 'Diagnóstico OBD' }} />
       </Stack.Protected>
       <Stack.Protected guard={!user}>

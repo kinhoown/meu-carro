@@ -2,12 +2,14 @@ import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { Button, Card, colors, Muted, Screen, Title } from '@/components/ui';
+import { CarArt } from '@/components/CarArt';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { installedVersion } from '@/lib/updater';
 import { listVehicles } from '@/lib/db';
 import { formatKm, formatPlate } from '@/lib/format';
 import { signOutAll } from '@/lib/google';
 import type { Vehicle } from '@/lib/types';
+import { guessBody } from '@/lib/vehicleLook';
 
 export default function Vehicles() {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
@@ -48,6 +50,9 @@ export default function Vehicles() {
         vehicles.map((v) => (
           <Pressable key={v.id} onPress={() => router.push(`/vehicle/${v.id}`)}>
             <Card>
+              <View style={{ alignItems: 'center', marginBottom: 4 }}>
+                <CarArt body={v.body ?? guessBody(v.model)} color={v.color} width={260} />
+              </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>
                   {v.nickname || formatPlate(v.plate)}

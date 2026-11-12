@@ -76,3 +76,37 @@ export function daysBetween(fromIso: string, toIsoDate: string): number {
   const b = new Date(toIsoDate + 'T00:00:00');
   return Math.round((b.getTime() - a.getTime()) / 86_400_000);
 }
+
+// ---------- Máscaras de número enquanto digita (padrão brasileiro) ----------
+
+/** 1234567 -> "1.234.567" */
+export function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Inteiro com ponto de milhar: "45000" -> "45.000". */
+export function maskInt(text: string): string {
+  const digits = text.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 9);
+  return groupThousands(digits);
+}
+
+/**
+ * Dinheiro como nos apps de banco: os dígitos entram pela direita.
+ * "5" -> "0,05" ; "11135654" -> "111.356,54".
+ */
+export function maskMoney(text: string): string {
+  const digits = text.replace(/\D/g, '').replace(/^0+/, '').slice(0, 11);
+  if (!digits) return '';
+  const padded = digits.padStart(3, '0');
+  return `${groupThousands(padded.slice(0, -2))},${padded.slice(-2)}`;
+}
+
+/** Número salvo -> texto do campo inteiro. */
+export function intToInput(n: number | null | undefined): string {
+  return n == null ? '' : groupThousands(String(Math.round(n)));
+}
+
+/** Número salvo -> texto do campo dinheiro ("1234.5" -> "1.234,50"). */
+export function moneyToInput(n: number | null | undefined): string {
+  return n == null ? '' : maskMoney(n.toFixed(2));
+}

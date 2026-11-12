@@ -7,7 +7,9 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "android": {
       "package": "com.meucarro.manutencao",
       "permissions": [
@@ -22,7 +24,11 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.REQUEST_INSTALL_PACKAGES"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1f6feb"
+      }
     },
     "plugins": [
       "expo-router",
@@ -44,6 +50,7 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
