@@ -1,0 +1,82 @@
+# Gera o APK assinado e publica uma Release a cada push na main.
+# O app instalado no celular consulta a última Release e oferece a atualização.
+name: Android release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      MEUCARRO_KEYSTORE: ${{ github.workspace }}/release.keystore
+      MEUCARRO_KEYSTORE_PASSWORD: ${{ secrets.MEUCARRO_KEYSTORE_PASSWORD }}
+      MEUCARRO_KEY_ALIAS: ${{ secrets.MEUCARRO_KEY_ALIAS }}
+      MEUCARRO_KEY_PASSWORD: ${{ secrets.MEUCARRO_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Número do build = execução do workflow + 1 (fica sempre acima do build 1 gerado no PC).
+      - name: Versão
+        run: echo "APP_VERSION_CODE=$(( ${{ github.run_number }} + 1 ))" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Chave de assinatura
+        env:
+          KEYSTORE_BASE64: ${{ secrets.MEUCARRO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret MEUCARRO_KEYSTORE_BASE64 não configurado"; exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$MEUCARRO_KEYSTORE"
+
+      - name: Avisar se o Supabase não estiver configurado
+        if: env.EXPO_PUBLIC_SUPABASE_URL == ''
+        run: echo "::warning::Secrets do Supabase vazios — o login não vai funcionar neste APK."
+
+      - run: npm ci
+
+      - name: Gerar projeto Android
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a
+
+      - name: Publicar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="1.0.${APP_VERSION_CODE}"
+          APK="meu-carro-v${VERSION}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$APK"
+          git log -1 --pretty=%B > notes.txt
+          gh release create "v${VERSION}" "$APK" \
+            --title "Meu Carro ${VERSION}" \
+            --notes-file notes.txt \
+            --target "${GITHUB_SHA}"
