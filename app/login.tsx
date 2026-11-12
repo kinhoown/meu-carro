@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
 import { Button, colors, Field, Muted, styles } from '@/components/ui';
+import { isGoogleConfigured, signInWithGoogle } from '@/lib/google';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 const NOT_CONFIGURED =
@@ -13,6 +14,22 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  async function google() {
+    if (!isSupabaseConfigured) {
+      Alert.alert('Servidor não configurado', NOT_CONFIGURED);
+      return;
+    }
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      Alert.alert('Login com Google', (e as Error).message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
 
   async function submit() {
     if (!isSupabaseConfigured) {
@@ -65,6 +82,24 @@ export default function Login() {
           <Text style={{ color: colors.text }}>{NOT_CONFIGURED}</Text>
         </View>
       )}
+
+      <Button
+        title="Entrar com Google"
+        onPress={google}
+        loading={googleLoading}
+        disabled={!isGoogleConfigured}
+      />
+      {!isGoogleConfigured && isSupabaseConfigured && (
+        <View style={{ marginTop: 6 }}>
+          <Muted>Login com Google ainda não configurado nesta versão.</Muted>
+        </View>
+      )}
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+        <Text style={{ marginHorizontal: 12, color: colors.muted }}>ou com e-mail</Text>
+        <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+      </View>
 
       <Field
         label="E-mail"

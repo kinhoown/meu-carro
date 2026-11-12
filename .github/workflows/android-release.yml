@@ -23,6 +23,7 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
       MEUCARRO_KEYSTORE: ${{ github.workspace }}/release.keystore
       MEUCARRO_KEYSTORE_PASSWORD: ${{ secrets.MEUCARRO_KEYSTORE_PASSWORD }}
       MEUCARRO_KEY_ALIAS: ${{ secrets.MEUCARRO_KEY_ALIAS }}
@@ -58,6 +59,10 @@ jobs:
       - name: Avisar se o Supabase não estiver configurado
         if: env.EXPO_PUBLIC_SUPABASE_URL == ''
         run: echo "::warning::Secrets do Supabase vazios — o login não vai funcionar neste APK."
+
+      - name: Avisar se o login com Google não estiver configurado
+        if: env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID == ''
+        run: echo "::warning::Secret EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID vazio — o botão Entrar com Google fica desativado."
 
       - run: npm ci
 

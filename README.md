@@ -17,7 +17,7 @@ App Android em React Native (Expo) para:
 
 ```
 app/                      telas (expo-router)
-  login.tsx               entrar / criar conta
+  login.tsx               entrar com Google ou e-mail
   index.tsx               lista de veículos
   vehicle/new.tsx         cadastro (placa + FIPE)
   vehicle/[id]/index.tsx  detalhes, lembretes e histórico
@@ -42,6 +42,31 @@ supabase/schema.sql       tabelas + regras de segurança (RLS)
 3. Em **Project Settings → API**, copie a *Project URL* e a *anon public key*.
 4. Copie `.env.example` para `.env` e cole os dois valores.
 5. (Opcional) Em **Authentication → Providers → Email**, desative *Confirm email* para testar mais rápido.
+
+## 2b. Login com Google (opcional, recomendado)
+
+O botão **Entrar com Google** abre o seletor de contas do próprio Android (sem digitar senha).
+Os veículos, manutenções e leituras ficam ligados à sua conta Google no Supabase: entrando com o
+mesmo Google em outro celular, aparecem os mesmos dados. Se você já tinha conta por e-mail com o
+mesmo endereço do Google, o Supabase junta as duas.
+
+1. Em https://console.cloud.google.com crie um projeto e configure a **Tela de consentimento OAuth**
+   (tipo *Externo*; enquanto estiver em "Teste", adicione seu Gmail em *Usuários de teste*).
+2. Em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**, crie **dois**:
+   - **Android**: pacote `com.meucarro.manutencao` e
+     SHA-1 `DC:EC:24:A9:CC:52:BE:9F:3E:94:E0:C0:F9:B4:F5:49:B3:15:00:18` (da chave de assinatura das Releases).
+   - **Aplicativo da Web**: não precisa de URL. Copie o *ID do cliente* e a *Chave secreta*.
+3. No Supabase, **Authentication → Providers → Google**: ative, cole o ID e a chave secreta do cliente **Web**
+   e salve.
+4. Cadastre o ID do cliente Web no GitHub e publique uma versão nova:
+
+```bash
+gh secret set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -R kinhoown/meu-carro
+```
+
+> Se o login mostrar "não autorizado para este app", o SHA-1 ou o pacote do cliente Android estão
+> diferentes. Builds de teste feitos no PC (`expo run:android`) usam outra chave: crie mais um cliente
+> Android com o SHA-1 de `android/app/debug.keystore` (`cd android && ./gradlew signingReport`).
 
 ## 3. Rodar no celular
 
@@ -92,7 +117,8 @@ Secrets do GitHub. **Faça backup dessa pasta** — se perder a chave, será pre
 reinstalar o app.
 
 Secrets usados pelo workflow: `MEUCARRO_KEYSTORE_BASE64`, `MEUCARRO_KEYSTORE_PASSWORD`,
-`MEUCARRO_KEY_ALIAS`, `MEUCARRO_KEY_PASSWORD`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+`MEUCARRO_KEY_ALIAS`, `MEUCARRO_KEY_PASSWORD`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
+`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
 Para configurar o Supabase no APK publicado:
 
 ```bash
