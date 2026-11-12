@@ -2,7 +2,11 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
 import { Button, colors, Field, Muted, styles } from '@/components/ui';
-import { supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+
+const NOT_CONFIGURED =
+  'Esta versão foi gerada sem as chaves do Supabase, então o login ainda não funciona. ' +
+  'Configure os Secrets no GitHub e instale a próxima atualização.';
 
 export default function Login() {
   const [mode, setMode] = useState<'entrar' | 'cadastrar'>('entrar');
@@ -11,6 +15,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   async function submit() {
+    if (!isSupabaseConfigured) {
+      Alert.alert('Servidor não configurado', NOT_CONFIGURED);
+      return;
+    }
     if (!email.trim() || password.length < 6) {
       Alert.alert('Atenção', 'Informe o e-mail e uma senha com pelo menos 6 caracteres.');
       return;
@@ -41,6 +49,22 @@ export default function Login() {
       <View style={{ marginBottom: 24 }}>
         <Muted>Manutenções e diagnóstico OBD do seu veículo</Muted>
       </View>
+
+      {!isSupabaseConfigured && (
+        <View
+          style={{
+            backgroundColor: colors.warning + '22',
+            borderColor: colors.warning,
+            borderWidth: 1,
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: '700' }}>Servidor não configurado</Text>
+          <Text style={{ color: colors.text }}>{NOT_CONFIGURED}</Text>
+        </View>
+      )}
 
       <Field
         label="E-mail"
