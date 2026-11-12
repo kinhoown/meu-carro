@@ -17,7 +17,7 @@ export default function RootLayout() {
 }
 
 function RootStack() {
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -35,14 +35,14 @@ function RootStack() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Stack.Protected guard={!!session}>
+      <Stack.Protected guard={!!user}>
         <Stack.Screen name="index" options={{ title: 'Meus veículos' }} />
         <Stack.Screen name="vehicle/new" options={{ title: 'Novo veículo' }} />
         <Stack.Screen name="vehicle/[id]/index" options={{ title: 'Veículo' }} />
         <Stack.Screen name="vehicle/[id]/maintenance" options={{ title: 'Manutenção' }} />
         <Stack.Screen name="vehicle/[id]/obd" options={{ title: 'Diagnóstico OBD' }} />
       </Stack.Protected>
-      <Stack.Protected guard={!session}>
+      <Stack.Protected guard={!user}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Screen name="updates" options={{ title: 'Atualizações' }} />

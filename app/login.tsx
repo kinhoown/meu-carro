@@ -3,11 +3,12 @@ import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Pressable, Text, View } from 'react-native';
 import { Button, colors, Field, Muted, styles } from '@/components/ui';
 import { isGoogleConfigured, signInWithGoogle } from '@/lib/google';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
 const NOT_CONFIGURED =
-  'Esta versão foi gerada sem as chaves do Supabase, então o login ainda não funciona. ' +
-  'Configure os Secrets no GitHub e instale a próxima atualização.';
+  'Esta versão foi gerada sem a configuração do Firebase, então o login ainda não funciona. ' +
+  'Preencha o firebase.config.ts e instale a próxima atualização.';
 
 export default function Login() {
   const [mode, setMode] = useState<'entrar' | 'cadastrar'>('entrar');
@@ -17,7 +18,7 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   async function google() {
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
       Alert.alert('Servidor não configurado', NOT_CONFIGURED);
       return;
     }
@@ -32,7 +33,7 @@ export default function Login() {
   }
 
   async function submit() {
-    if (!isSupabaseConfigured) {
+    if (!isFirebaseConfigured) {
       Alert.alert('Servidor não configurado', NOT_CONFIGURED);
       return;
     }
@@ -43,18 +44,12 @@ export default function Login() {
     setLoading(true);
     try {
       if (mode === 'entrar') {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
-        if (error) throw error;
-        if (!data.session) {
-          Alert.alert('Confirme seu e-mail', 'Enviamos um link de confirmação. Depois é só entrar.');
-          setMode('entrar');
-        }
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (e) {
-      Alert.alert('Erro', translateAuthError((e as Error).message));
+      Alert.alert('Erro', translateAuthError(e));
     } finally {
       setLoading(false);
     }
@@ -67,7 +62,7 @@ export default function Login() {
         <Muted>Manutenções e diagnóstico OBD do seu veículo</Muted>
       </View>
 
-      {!isSupabaseConfigured && (
+      {!isFirebaseConfigured && (
         <View
           style={{
             backgroundColor: colors.warning + '22',
@@ -89,7 +84,7 @@ export default function Login() {
         loading={googleLoading}
         disabled={!isGoogleConfigured}
       />
-      {!isGoogleConfigured && isSupabaseConfigured && (
+      {!isGoogleConfigured && isFirebaseConfigured && (
         <View style={{ marginTop: 6 }}>
           <Muted>Login com Google ainda não configurado nesta versão.</Muted>
         </View>
@@ -129,9 +124,27 @@ export default function Login() {
   );
 }
 
-function translateAuthError(msg: string): string {
-  if (/invalid login credentials/i.test(msg)) return 'E-mail ou senha incorretos.';
-  if (/email not confirmed/i.test(msg)) return 'Confirme seu e-mail antes de entrar.';
-  if (/already registered/i.test(msg)) return 'Este e-mail já está cadastrado.';
-  return msg;
+function translateAuthError(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? '';
+  switch (code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'E-mail ou senha incorretos.';
+    case 'auth/invalid-email':
+      return 'E-mail inválido.';
+    case 'auth/email-already-in-use':
+      return 'Este e-mail já está cadastrado. Se você usou o Google antes, entre com o Google.';
+    case 'auth/weak-password':
+      return 'Senha fraca: use pelo menos 6 caracteres.';
+    case 'auth/too-many-requests':
+      return 'Muitas tentativas. Espere alguns minutos e tente de novo.';
+    case 'auth/network-request-failed':
+      return 'Sem conexão com a internet.';
+    case 'auth/configuration-not-found':
+    case 'auth/operation-not-allowed':
+      return 'Ative "E-mail/senha" no Firebase (Authentication → Método de login).';
+    default:
+      return (e as Error)?.message ?? String(e);
+  }
 }

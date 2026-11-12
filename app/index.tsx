@@ -6,8 +6,7 @@ import { UpdateBanner } from '@/components/UpdateBanner';
 import { installedVersion } from '@/lib/updater';
 import { listVehicles } from '@/lib/db';
 import { formatKm, formatPlate } from '@/lib/format';
-import { signOutGoogle } from '@/lib/google';
-import { supabase } from '@/lib/supabase';
+import { signOutAll } from '@/lib/google';
 import type { Vehicle } from '@/lib/types';
 
 export default function Vehicles() {
@@ -29,7 +28,7 @@ export default function Vehicles() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => signOutGoogle().finally(() => supabase.auth.signOut())} hitSlop={12}>
+            <Pressable onPress={() => signOutAll().catch((e) => Alert.alert('Erro', e.message))} hitSlop={12}>
               <Text style={{ color: colors.primary, fontWeight: '600' }}>Sair</Text>
             </Pressable>
           ),

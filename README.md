@@ -8,7 +8,7 @@ App Android em React Native (Expo) para:
 - **Ler o carro por OBD-II** com adaptadores **ELM327** por **Bluetooth clássico**, **BLE** ou **Wi-Fi**:
   rotação, velocidade, temperaturas, carga, combustível, tensão, hodômetro (se o carro informar),
   **códigos de falha** (ler/apagar), códigos pendentes e chassi (VIN).
-- **Dados na nuvem** (Supabase), com login por e-mail; cada usuário só vê os próprios dados.
+- **Dados na nuvem** (Firebase do Google), com login pela **conta Google** ou por e-mail; cada usuário só vê os próprios dados.
 
 > Não existe API pública gratuita do Detran para buscar o carro pela placa. Por isso a placa é
 > guardada como identificação, e o modelo vem da tabela FIPE (marca → modelo → ano).
@@ -23,9 +23,10 @@ app/                      telas (expo-router)
   vehicle/[id]/index.tsx  detalhes, lembretes e histórico
   vehicle/[id]/maintenance.tsx  nova/editar manutenção
   vehicle/[id]/obd.tsx    conexão e diagnóstico OBD
-lib/                      Supabase, FIPE, formatação, regras de manutenção
+lib/                      Firebase (login e banco), FIPE, formatação, regras de manutenção
 obd/                      ELM327, PIDs, códigos de falha e transportes (classic / BLE / Wi-Fi)
-supabase/schema.sql       tabelas + regras de segurança (RLS)
+firebase.config.ts        configuração do projeto Firebase (preencher)
+firestore.rules           regras de segurança do banco
 ```
 
 ## 1. Instalar as ferramentas (uma vez)
@@ -35,38 +36,33 @@ supabase/schema.sql       tabelas + regras de segurança (RLS)
 3. **Android SDK**: já existe em `%LOCALAPPDATA%\Android\Sdk`. Defina a variável
    `ANDROID_HOME` apontando para essa pasta e adicione `%ANDROID_HOME%\platform-tools` ao `PATH`.
 
-## 2. Criar o banco (Supabase, grátis)
+## 2. Configurar o Firebase (grátis)
 
-1. Crie um projeto em https://supabase.com.
-2. Em **SQL Editor**, cole o conteúdo de `supabase/schema.sql` e clique em **Run**.
-3. Em **Project Settings → API**, copie a *Project URL* e a *anon public key*.
-4. Copie `.env.example` para `.env` e cole os dois valores.
-5. (Opcional) Em **Authentication → Providers → Email**, desative *Confirm email* para testar mais rápido.
+Os veículos, manutenções e leituras ficam no **Cloud Firestore**, ligados à conta com que você entrou.
+Entrando com o mesmo Google em outro celular, aparecem os mesmos dados.
 
-## 2b. Login com Google (opcional, recomendado)
+1. Em https://console.firebase.google.com clique em **Criar um projeto** (nome `Meu Carro`;
+   o Google Analytics pode ficar desativado).
+2. **Adicionar o app Android** (ícone do Android na página inicial do projeto):
+   - Nome do pacote: `com.meucarro.manutencao`
+   - Certificado SHA-1: `DC:EC:24:A9:CC:52:BE:9F:3E:94:E0:C0:F9:B4:F5:49:B3:15:00:18`
+   - Clique em **Registrar app**. O `google-services.json` **não** é necessário: pode pular os próximos passos.
+3. **Adicionar o app da Web** (ícone `</>`, nome `Meu Carro`, sem Hosting). Ao final aparece o bloco
+   `const firebaseConfig = { apiKey: ..., authDomain: ..., ... }`: copie esses valores para
+   [firebase.config.ts](firebase.config.ts).
+4. **Authentication → Vamos começar → Método de login**:
+   - **Google**: ative, escolha o e-mail de suporte e salve. Depois abra o Google de novo, expanda
+     **Configuração do SDK da Web** e copie o **ID do cliente da Web** para `googleWebClientId` em
+     [firebase.config.ts](firebase.config.ts).
+   - **E-mail/senha**: ative (opcional, para quem não quiser usar o Google).
+5. **Firestore Database → Criar banco de dados**: local `southamerica-east1 (São Paulo)`, modo **produção**.
+   Depois, na aba **Regras**, cole o conteúdo de [firestore.rules](firestore.rules) e clique em **Publicar**.
+6. Envie o `firebase.config.ts` preenchido para o GitHub (`git push`): sai uma versão nova com o login funcionando.
 
-O botão **Entrar com Google** abre o seletor de contas do próprio Android (sem digitar senha).
-Os veículos, manutenções e leituras ficam ligados à sua conta Google no Supabase: entrando com o
-mesmo Google em outro celular, aparecem os mesmos dados. Se você já tinha conta por e-mail com o
-mesmo endereço do Google, o Supabase junta as duas.
-
-1. Em https://console.cloud.google.com crie um projeto e configure a **Tela de consentimento OAuth**
-   (tipo *Externo*; enquanto estiver em "Teste", adicione seu Gmail em *Usuários de teste*).
-2. Em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**, crie **dois**:
-   - **Android**: pacote `com.meucarro.manutencao` e
-     SHA-1 `DC:EC:24:A9:CC:52:BE:9F:3E:94:E0:C0:F9:B4:F5:49:B3:15:00:18` (da chave de assinatura das Releases).
-   - **Aplicativo da Web**: não precisa de URL. Copie o *ID do cliente* e a *Chave secreta*.
-3. No Supabase, **Authentication → Providers → Google**: ative, cole o ID e a chave secreta do cliente **Web**
-   e salve.
-4. Cadastre o ID do cliente Web no GitHub e publique uma versão nova:
-
-```bash
-gh secret set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -R kinhoown/meu-carro
-```
-
-> Se o login mostrar "não autorizado para este app", o SHA-1 ou o pacote do cliente Android estão
-> diferentes. Builds de teste feitos no PC (`expo run:android`) usam outra chave: crie mais um cliente
-> Android com o SHA-1 de `android/app/debug.keystore` (`cd android && ./gradlew signingReport`).
+> Os valores do `firebase.config.ts` não são segredos (vão dentro de todo app Firebase); quem protege
+> os dados são as regras do Firestore. Se o login com Google mostrar "não autorizado para este app",
+> o SHA-1 do app Android no Firebase está errado. Builds de teste feitos no PC (`expo run:android`)
+> usam outra chave: adicione também o SHA-1 de `cd android && ./gradlew signingReport`.
 
 ## 3. Rodar no celular
 
@@ -117,17 +113,7 @@ Secrets do GitHub. **Faça backup dessa pasta** — se perder a chave, será pre
 reinstalar o app.
 
 Secrets usados pelo workflow: `MEUCARRO_KEYSTORE_BASE64`, `MEUCARRO_KEYSTORE_PASSWORD`,
-`MEUCARRO_KEY_ALIAS`, `MEUCARRO_KEY_PASSWORD`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`,
-`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
-Para configurar o Supabase no APK publicado:
-
-```bash
-gh secret set EXPO_PUBLIC_SUPABASE_URL
-```
-
-```bash
-gh secret set EXPO_PUBLIC_SUPABASE_ANON_KEY
-```
+`MEUCARRO_KEY_ALIAS`, `MEUCARRO_KEY_PASSWORD`.
 
 ## Usando o OBD
 
@@ -147,5 +133,5 @@ Dicas:
 ## Próximos passos sugeridos
 
 - Notificações locais quando uma manutenção estiver para vencer (`expo-notifications`).
-- Foto da nota fiscal anexada à manutenção (Supabase Storage).
+- Foto da nota fiscal anexada à manutenção (Firebase Storage).
 - Integração com um provedor pago de consulta por placa, se quiser preencher o modelo automaticamente.
