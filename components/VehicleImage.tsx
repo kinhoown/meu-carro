@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Text, View } from 'react-native';
 import { CarArt } from './CarArt';
 import { colors } from './ui';
-import { findCarPhoto, WIKI_HEADERS } from '@/lib/carPhoto';
+import { findCarPhoto, PHOTO_SEARCH_VERSION, WIKI_HEADERS } from '@/lib/carPhoto';
 import { updateVehicle } from '@/lib/db';
 import type { Vehicle } from '@/lib/types';
 import { guessBody } from '@/lib/vehicleLook';
@@ -28,15 +28,20 @@ export function VehicleImage({
   // Foto achada nesta tela (aparece mesmo se a gravação no banco falhar).
   const [found, setFound] = useState<string | null>(null);
   const wantsPhoto = vehicle.photo_mode !== 'desenho';
+  // Busca de novo se nunca buscou, ou se a foto foi escolhida sozinha por uma busca antiga.
+  // photo_v = 0 marca foto escolhida por você em "Trocar imagem": essa fica como está.
+  const needsSearch =
+    wantsPhoto &&
+    (vehicle.photo_url === undefined || (vehicle.photo_v !== 0 && vehicle.photo_v !== PHOTO_SEARCH_VERSION));
 
   useEffect(() => {
-    if (!wantsPhoto || vehicle.photo_url !== undefined) return;
+    if (!needsSearch) return;
     setSearching(true);
     let job = pending.get(vehicle.id);
     if (!job) {
       job = findCarPhoto(vehicle.brand, vehicle.model, vehicle.year_model)
         .then(async (photo) => {
-          const patch = { photo_url: photo?.url ?? null, photo_title: photo?.title ?? null };
+          const patch = { photo_url: photo?.url ?? null, photo_title: photo?.title ?? null, photo_v: PHOTO_SEARCH_VERSION };
           setFound(photo?.url ?? null);
           onUpdated?.(patch);
           await updateVehicle(vehicle.id, patch);
@@ -47,11 +52,11 @@ export function VehicleImage({
     }
     job.finally(() => setSearching(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.id, vehicle.photo_url, wantsPhoto]);
+  }, [vehicle.id, needsSearch]);
 
   useEffect(() => setFailed(false), [vehicle.photo_url]);
 
-  const url = vehicle.photo_url ?? found;
+  const url = found ?? vehicle.photo_url;
   if (wantsPhoto && url && !failed) {
     return (
       <View>

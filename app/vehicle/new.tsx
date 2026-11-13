@@ -4,7 +4,7 @@ import { Alert, Text } from 'react-native';
 import { AppearancePicker } from '@/components/AppearancePicker';
 import { SelectModal, type Option } from '@/components/SelectModal';
 import { Button, Card, colors, Field, Muted, NumberField, Screen, SelectField, Title } from '@/components/ui';
-import { findCarPhoto } from '@/lib/carPhoto';
+import { findCarPhoto, PHOTO_SEARCH_VERSION } from '@/lib/carPhoto';
 import { createVehicle } from '@/lib/db';
 import { getBrands, getDetail, getModels, getYears, type FipeDetail, type FipeItem } from '@/lib/fipe';
 import { formatPlate, isValidPlate, normalizePlate, parseNumber } from '@/lib/format';
@@ -107,7 +107,7 @@ export default function NewVehicle() {
         current_km: Math.round(parseNumber(km) ?? 0),
         body: look.body,
         color: look.color,
-        ...(photo ? { photo_url: photo.url, photo_title: photo.title, photo_mode: 'foto' as const } : {}),
+        ...(photo ? { photo_url: photo.url, photo_title: photo.title, photo_v: PHOTO_SEARCH_VERSION } : {}),
       });
       router.replace(`/vehicle/${v.id}`);
     } catch (e) {

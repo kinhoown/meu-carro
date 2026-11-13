@@ -22,9 +22,15 @@ export function VehicleImageEditor({
   onSaved: (patch: Partial<Vehicle>) => void;
 }) {
   const [tab, setTab] = useState<Tab>(vehicle.photo_mode === 'desenho' ? 'desenho' : 'foto');
-  const [query, setQuery] = useState(photoQuery(vehicle.brand, vehicle.model));
+  const defaultQuery = `${photoQuery(vehicle.brand, vehicle.model)}${vehicle.year_model ? ` ${vehicle.year_model}` : ''}`;
+  const [query, setQuery] = useState(defaultQuery);
   const [options, setOptions] = useState<PhotoCandidate[] | null>(null);
   const [loading, setLoading] = useState(false);
+  // Reabre sempre com a busca padrão (ano incluído).
+  useEffect(() => {
+    if (visible) setQuery((q) => q || defaultQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
   const [look, setLook] = useState<{ body: BodyType; color: string }>({
     body: vehicle.body ?? guessBody(vehicle.model),
     color: vehicle.color ?? DEFAULT_COLOR,
@@ -85,7 +91,10 @@ export function VehicleImageEditor({
               </View>
               <Button title="Buscar" variant="outline" onPress={() => search(query)} style={{ marginBottom: 12 }} />
             </Row>
-            <Muted>Dica: inclua o ano ou a versão, ex.: "{photoQuery(vehicle.brand, vehicle.model)} 2016".</Muted>
+            <Muted>
+              Digite o modelo e, se quiser, o ano e a versão. Ex.: "Onix LTZ 2016", "Gol G5", "Palio Weekend 2012".
+              {options ? ` ${options.length} foto(s) encontrada(s).` : ''}
+            </Muted>
             <View style={{ height: 12 }} />
 
             {loading ? (
@@ -99,7 +108,7 @@ export function VehicleImageEditor({
                   return (
                     <Pressable
                       key={o.url}
-                      onPress={() => save({ photo_url: o.url, photo_title: o.title, photo_mode: 'foto' })}
+                      onPress={() => save({ photo_url: o.url, photo_title: o.title, photo_mode: 'foto', photo_v: 0 })}
                       style={{
                         width: '48%',
                         borderRadius: 10,

@@ -15,6 +15,9 @@ export interface PhotoCandidate {
 const UA = 'MeuCarro/1.0 (Android; github.com/kinhoown/meu-carro)';
 export const WIKI_HEADERS = { 'User-Agent': UA, 'Api-User-Agent': UA };
 
+/** Sobe quando a busca automática melhora: fotos escolhidas sozinhas são buscadas de novo. */
+export const PHOTO_SEARCH_VERSION = 2;
+
 /** A Wikimedia só serve miniaturas em larguras padrão (800 px dá erro 400). */
 const THUMB_WIDTH = '960';
 
@@ -32,7 +35,7 @@ export function normalizeBrand(brand: string): string {
     .replace(/^Bmw$/, 'BMW');
 }
 
-const TWO_WORD_FIRST = new Set(['grand', 'new', 'range', 'space', 'classe', 'serie', 'série', 'land', 'santa', 'c4', 'c3', 'up!']);
+const TWO_WORD_FIRST = new Set(['grand', 'new', 'range', 'space', 'classe', 'serie', 'série', 'land', 'santa', 'c4', 'c3']);
 const TWO_WORD_SECOND = new Set(['plus', 'cross', 'sport', 'sw4', 'weekend', 'picasso', 'lounge', 'aircross']);
 
 /** "Onix HATCH LT 1.0 12V" -> "Onix" ; "Corolla Cross XRE 2.0" -> "Corolla Cross" ; "COMPASS LONGITUDE" -> "Compass" */
@@ -66,6 +69,29 @@ const strip = (s: string) =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
 
+/**
+ * Palavras inteiras de um texto, sem acento e sem hífen dentro do nome:
+ * "2016 Chevrolet Onix (front)" -> [2016, chevrolet, onix, front] ; "T-Cross" -> [tcross] ; "Up!" -> [up].
+ * Comparar palavras inteiras evita que "Gol" ache "Golf" ou "Ka" ache "Kadjar".
+ */
+export function tokens(s: string): string[] {
+  return strip(s)
+    .replace(/([a-z0-9])-(?=[a-z0-9])/g, '$1')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+const isYear = (t: string) => /^(19|20)\d{2}$/.test(t);
+
+/** Marcas comuns (para tirar a marca do texto que o usuário digitou). */
+const BRANDS = new Set(
+  (
+    'chevrolet gm volkswagen vw fiat ford renault toyota honda hyundai jeep nissan peugeot citroen mitsubishi ' +
+    'kia chery caoa bmw audi mercedes benz volvo land rover suzuki subaru jac byd gwm haval ram dodge chrysler ' +
+    'mini porsche lexus troller lifan effa'
+  ).split(' '),
+);
+
 async function searchWiki(lang: 'pt' | 'en', query: string): Promise<PhotoCandidate[]> {
   const params = qs({
     action: 'query',
@@ -78,9 +104,7 @@ async function searchWiki(lang: 'pt' | 'en', query: string): Promise<PhotoCandid
     piprop: 'thumbnail',
     pithumbsize: THUMB_WIDTH,
   });
-  const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${params}`, {
-    headers: WIKI_HEADERS,
-  });
+  const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${params}`, { headers: WIKI_HEADERS });
   if (!res.ok) throw new Error(`Wikipédia respondeu ${res.status}`);
   const json = await res.json();
   const pages = Object.values<{ index: number; title: string; thumbnail?: { source: string } }>(json.query?.pages ?? {});
@@ -90,95 +114,160 @@ async function searchWiki(lang: 'pt' | 'en', query: string): Promise<PhotoCandid
     .map((p) => ({ title: p.title, url: p.thumbnail!.source }));
 }
 
-/**
- * Busca fotos do modelo e ordena: título igual à busca primeiro, depois títulos que contêm
- * todas as palavras, depois o resto. Páginas só da marca (ex.: "Chevrolet") ficam de fora.
- */
-export async function searchCarPhotos(query: string, brand?: string): Promise<PhotoCandidate[]> {
-  let list = await searchWiki('pt', query).catch(() => [] as PhotoCandidate[]);
-  if (list.length < 2) list = [...list, ...(await searchWiki('en', query).catch(() => []))];
+/** Fotos que não mostram o carro inteiro por fora (ou não são o carro de rua). */
+const BAD_WORDS = new Set(
+  (
+    'rear back heck traseira traseiro belakang arriere tail taillight taillights interior interieur inside ' +
+    'dashboard dash cockpit steering engine motor trunk badge logo emblem wheel wheels rim rims seat seats ' +
+    'headlight headlights detail concept prototype render sketch drawing crash accident wreck police policia ' +
+    'taxi racing race rally drift tuning tuned modified miniature toy diecast lego advertisement brochure'
+  ).split(' '),
+);
+const FRONT_WORDS = new Set(['front', 'frente', 'frontal', 'vorne', 'dianteira']);
 
-  const q = strip(query);
-  const words = q.split(/\s+/).filter(Boolean);
-  const brandOnly = brand ? strip(normalizeBrand(brand)) : '';
-  const score = (c: PhotoCandidate) => {
-    const t = strip(c.title).replace(/\s*\(.*\)$/, '');
-    if (t === q) return 3;
-    if (words.every((w) => t.includes(w))) return 2;
-    if (words.slice(1).some((w) => t.includes(w))) return 1;
-    return 0;
-  };
-  const seen = new Set<string>();
-  return list
-    .filter((c) => strip(c.title) !== brandOnly && !/^lista/i.test(c.title))
-    .filter((c) => (seen.has(c.url) ? false : (seen.add(c.url), true)))
-    .map((c, i) => ({ c, s: score(c), i }))
-    .sort((a, b) => b.s - a.s || a.i - b.i)
-    .map((x) => x.c);
+/** O que procurar: palavras do modelo (obrigatórias), extras (versão etc.), marca e ano. */
+export interface PhotoSearch {
+  text: string;
+  required: string[];
+  extra: string[];
+  brand: string[];
+  year: number | null;
 }
 
-const BAD_WORDS = /\b(rear|back|heck|traseira|traseiro|belakang|arriere|interior|interieur|dashboard|cockpit|engine|motor|trunk|badge|logo|emblem|wheel|seat|concept|prototype|render|sketch|crash|accident|police|taxi|racing|rally|drift|type r)\b/i;
+/** Busca automática a partir dos dados da FIPE. */
+export function searchFromVehicle(brand: string, model: string, year?: number | null): PhotoSearch {
+  const b = normalizeBrand(brand);
+  const fam = modelFamily(model);
+  return { text: `${b} ${fam}`, required: tokens(fam), extra: [], brand: tokens(b), year: year ?? null };
+}
 
 /**
- * Fotos do Wikimedia Commons com o ano no nome (pega a geração certa do carro).
- * Só entram arquivos com o nome do modelo; foto de frente e do ano exato sobem na lista.
+ * Busca digitada pelo usuário, ex.: "Onix LTZ 2016" ou "Chevrolet Onix 2016".
+ * Marca e ano são reconhecidos; o modelo é obrigatório e o resto (versão etc.) só ajuda
+ * a ordenar, assim "LTZ" não zera os resultados.
  */
-export async function searchCommons(query: string, year?: number | null): Promise<PhotoCandidate[]> {
+export function searchFromText(text: string, brand: string, model: string): PhotoSearch {
+  const all = tokens(text);
+  const brandToks = tokens(normalizeBrand(brand));
+  const year = all.find(isYear);
+  const words = all.filter((t) => !isYear(t) && !BRANDS.has(t) && !brandToks.includes(t));
+  const famToks = tokens(modelFamily(model)).filter((t) => words.includes(t));
+  const required = famToks.length ? famToks : words.slice(0, 1);
+  const hasBrand = all.some((t) => BRANDS.has(t) || brandToks.includes(t));
+  return {
+    text: hasBrand ? text : `${normalizeBrand(brand)} ${text}`,
+    required,
+    extra: words.filter((t) => !required.includes(t)),
+    brand: hasBrand ? all.filter((t) => BRANDS.has(t) || brandToks.includes(t)) : brandToks,
+    year: year ? Number(year) : null,
+  };
+}
+
+function scoreName(name: string, q: PhotoSearch): number | null {
+  const tk = tokens(name);
+  if (!q.required.length || !q.required.every((r) => tk.includes(r))) return null;
+  if (tk.some((t) => BAD_WORDS.has(t))) return null;
+  let score = 0;
+  if (q.brand.some((b) => tk.includes(b))) score += 1;
+  if (tk.some((t) => FRONT_WORDS.has(t))) score += 2;
+  score += q.extra.filter((e) => tk.includes(e)).length * 2;
+  const years = tk.filter(isYear).map(Number);
+  if (q.year) {
+    if (years.includes(q.year)) score += 4;
+    else if (years.some((y) => Math.abs(y - q.year!) <= 1)) score += 3;
+    else if (years.some((y) => Math.abs(y - q.year!) <= 3)) score += 1;
+    else if (years.length) score -= 2; // provavelmente outra geração
+  }
+  return score;
+}
+
+async function commonsRaw(text: string): Promise<{ name: string; url: string }[]> {
   const params = qs({
     action: 'query',
     format: 'json',
     origin: '*',
     generator: 'search',
     gsrnamespace: '6',
-    gsrsearch: `${query}${year ? ` ${year}` : ''} filetype:bitmap`,
-    gsrlimit: '20',
+    gsrsearch: `${text} filetype:bitmap`,
+    gsrlimit: '40',
     prop: 'imageinfo',
     iiprop: 'url',
     iiurlwidth: THUMB_WIDTH,
   });
-  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, {
-    headers: WIKI_HEADERS,
-  });
+  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`, { headers: WIKI_HEADERS });
   if (!res.ok) throw new Error(`Wikimedia respondeu ${res.status}`);
   const json = await res.json();
   const pages = Object.values<{ index: number; title: string; imageinfo?: { thumburl?: string; url: string }[] }>(
     json.query?.pages ?? {},
   );
-  const words = strip(query).split(/\s+/).slice(1); // sem a marca
   return pages
-    .map((p) => ({ p, name: p.title.replace(/^File:|^Arquivo:/, '').replace(/\.[a-z]+$/i, '') }))
-    .filter(({ p, name }) => p.imageinfo?.[0] && words.every((w) => strip(name).includes(w)) && !BAD_WORDS.test(name))
-    .map(({ p, name }) => {
-      let score = 0;
-      if (/\b(front|frente|frontal|vorne|dianteira)\b/i.test(name)) score += 2;
-      const years = (name.match(/\b(19|20)\d{2}\b/g) ?? []).map(Number);
-      if (year && years.includes(year)) score += 3;
-      else if (year && years.some((y) => Math.abs(y - year) <= 1)) score += 2;
-      else if (year && years.some((y) => Math.abs(y - year) <= 3)) score += 1;
-      return { c: { title: name, url: p.imageinfo![0].thumburl ?? p.imageinfo![0].url }, score, index: p.index };
-    })
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map((x) => x.c);
+    .filter((p) => p.imageinfo?.[0])
+    .sort((a, b) => a.index - b.index)
+    .map((p) => ({
+      name: p.title.replace(/^(File|Arquivo):/, '').replace(/\.[a-z]+$/i, ''),
+      url: p.imageinfo![0].thumburl ?? p.imageinfo![0].url,
+    }));
 }
 
-/** Todas as opções de foto: primeiro as do ano certo (Commons), depois a foto da página do modelo. */
-export async function photoOptions(brand: string, model: string, year?: number | null, custom?: string) {
-  const query = custom?.trim() || photoQuery(brand, model);
+/**
+ * Fotos do Wikimedia Commons: busca com o ano (geração certa) e sem o ano (mais opções).
+ * Só entram arquivos com o nome do modelo em palavra inteira; frente e ano certo sobem.
+ */
+export async function searchCommons(q: PhotoSearch): Promise<PhotoCandidate[]> {
+  // Várias buscas: o texto completo, e só marca + modelo (com e sem ano), porque o Commons
+  // exige todas as palavras e a versão ("LTZ", "G5") quase nunca está no nome do arquivo.
+  const base = `${q.brand.join(' ')} ${q.required.join(' ')}`.trim();
+  const texts = [
+    q.year && !tokens(q.text).includes(String(q.year)) ? `${q.text} ${q.year}` : q.text,
+    q.year ? `${base} ${q.year}` : '',
+    base,
+  ];
+  const unique = [...new Set(texts.filter(Boolean))];
+  const runs = await Promise.all(unique.map((t) => commonsRaw(t).catch(() => [])));
+  const seen = new Set<string>();
+  const scored: { c: PhotoCandidate; score: number; index: number }[] = [];
+  runs.flat().forEach((r, i) => {
+    if (seen.has(r.url)) return;
+    seen.add(r.url);
+    const score = scoreName(r.name, q);
+    if (score != null) scored.push({ c: { title: r.name, url: r.url }, score, index: i });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.index - b.index).map((x) => x.c);
+}
+
+/** Foto principal das páginas da Wikipédia cujo título tem o modelo em palavra inteira. */
+export async function searchCarPhotos(q: PhotoSearch): Promise<PhotoCandidate[]> {
+  let list = await searchWiki('pt', q.text).catch(() => [] as PhotoCandidate[]);
+  if (list.length < 2) list = [...list, ...(await searchWiki('en', q.text).catch(() => []))];
+  return list.filter((c) => {
+    const tk = tokens(c.title);
+    return q.required.length > 0 && q.required.every((r) => tk.includes(r)) && !/^lista/i.test(c.title);
+  });
+}
+
+/** Opções para o usuário escolher: Commons (ano/versão certos primeiro) e depois a Wikipédia. */
+export async function photoOptions(
+  brand: string,
+  model: string,
+  year?: number | null,
+  custom?: string,
+): Promise<PhotoCandidate[]> {
+  const q = custom?.trim() ? searchFromText(custom, brand, model) : searchFromVehicle(brand, model, year);
   const [commons, wiki] = await Promise.all([
-    searchCommons(query, custom ? null : year).catch(() => [] as PhotoCandidate[]),
-    searchCarPhotos(query, brand).catch(() => [] as PhotoCandidate[]),
+    searchCommons(q).catch(() => [] as PhotoCandidate[]),
+    searchCarPhotos(q).catch(() => [] as PhotoCandidate[]),
   ]);
   const seen = new Set<string>();
-  return [...commons.slice(0, 8), ...wiki.slice(0, 4)].filter((c) => (seen.has(c.url) ? false : (seen.add(c.url), true)));
+  return [...commons.slice(0, 16), ...wiki.slice(0, 4)].filter((c) =>
+    seen.has(c.url) ? false : (seen.add(c.url), true),
+  );
 }
 
-/** Melhor foto para o veículo, ou null se nada parecido foi achado. */
+/** Melhor foto para o veículo, ou null se nada com o nome do modelo foi achado. */
 export async function findCarPhoto(brand: string, model: string, year?: number | null): Promise<PhotoCandidate | null> {
-  const query = photoQuery(brand, model);
-  const fam = strip(modelFamily(model)).split(/\s+/)[0];
-  const commons = await searchCommons(query, year).catch(() => [] as PhotoCandidate[]);
+  const q = searchFromVehicle(brand, model, year);
+  const commons = await searchCommons(q).catch(() => [] as PhotoCandidate[]);
   if (commons.length) return commons[0];
-  const list = await searchCarPhotos(query, brand);
-  // Só aceita automaticamente se o título tiver o nome do modelo (evita foto de outro carro).
-  return list.find((c) => strip(c.title).includes(fam)) ?? null;
+  const wiki = await searchCarPhotos(q).catch(() => [] as PhotoCandidate[]);
+  return wiki[0] ?? null;
 }

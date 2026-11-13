@@ -22,6 +22,8 @@ export interface Vehicle {
   photo_title?: string | null;
   /** 'desenho' = o usuário prefere o desenho em vez da foto. */
   photo_mode?: 'foto' | 'desenho' | null;
+  /** Versão da busca automática que escolheu a foto (refeita quando a busca melhora); 0 = escolhida por você. */
+  photo_v?: number | null;
   /** Plano de manutenção: próxima troca de cada item, pela chave do tipo (lib/maintenance.ts). */
   plan?: Record<string, PlanEntry>;
   created_at: string;
