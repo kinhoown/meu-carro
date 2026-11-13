@@ -22,11 +22,16 @@ import {
   todayIso,
 } from '@/lib/format';
 import { CORRECTIVE_TYPES, findType, MAINTENANCE_TYPES, nextFromLast, OTHER } from '@/lib/maintenance';
+import { iconForName } from '@/lib/icons';
 import type { MaintenanceKind, Vehicle } from '@/lib/types';
 
 const OPTIONS: Record<MaintenanceKind, { value: string; label: string }[]> = {
-  preventiva: [...MAINTENANCE_TYPES.map((t) => t.name), OTHER].map((n) => ({ value: n, label: n })),
-  corretiva: [...CORRECTIVE_TYPES, OTHER].map((n) => ({ value: n, label: n })),
+  preventiva: [...MAINTENANCE_TYPES.map((t) => t.name), OTHER].map((n) => ({
+    value: n,
+    label: n,
+    icon: iconForName(n, findType(n)?.id),
+  })),
+  corretiva: [...CORRECTIVE_TYPES, OTHER].map((n) => ({ value: n, label: n, icon: iconForName(n) })),
 };
 
 export default function MaintenanceForm() {

@@ -10,9 +10,27 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { maskInt, maskMoney } from '@/lib/format';
+import type { IconName } from '@/lib/icons';
 
-export const colors = {
+export type Palette = {
+  bg: string;
+  card: string;
+  text: string;
+  muted: string;
+  border: string;
+  primary: string;
+  danger: string;
+  warning: string;
+  success: string;
+  /** Fundo do seletor de abas e de chips. */
+  chip: string;
+  /** Fundo dos campos de texto. */
+  input: string;
+};
+
+export const LIGHT: Palette = {
   bg: '#f4f5f7',
   card: '#ffffff',
   text: '#1c2230',
@@ -22,7 +40,29 @@ export const colors = {
   danger: '#d64545',
   warning: '#e09b1a',
   success: '#2e9e5b',
+  chip: '#e7eaf0',
+  input: '#ffffff',
 };
+
+export const DARK: Palette = {
+  bg: '#0e1116',
+  card: '#181d25',
+  text: '#e8ebf0',
+  muted: '#9aa3b2',
+  border: '#2a313c',
+  primary: '#4c8dff',
+  danger: '#ef5b5b',
+  warning: '#f0a830',
+  success: '#3fb66f',
+  chip: '#222934',
+  input: '#12161c',
+};
+
+/**
+ * Cores do tema atual. É um objeto mutável: applyTheme() troca os valores e o app
+ * remonta as telas (ver lib/theme.tsx), então todo componente lê a cor certa ao renderizar.
+ */
+export const colors: Palette = { ...LIGHT };
 
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
   if (!scroll) return <View style={[styles.screen, styles.screenPad]}>{children}</View>;
@@ -139,7 +179,7 @@ export function Segmented<T extends string>({
   return (
     <View
       style={[
-        { flexDirection: 'row', backgroundColor: '#e7eaf0', borderRadius: 10, padding: 3, marginBottom: 12 },
+        { flexDirection: 'row', backgroundColor: colors.chip, borderRadius: 10, padding: 3, marginBottom: 12 },
         style,
       ]}
     >
@@ -162,6 +202,24 @@ export function Segmented<T extends string>({
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** Ícone redondo de categoria (óleo, freio, bancos...). */
+export function CategoryIcon({ name, color = colors.primary, size = 36 }: { name: IconName; color?: string; size?: number }) {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: color + '22',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <MaterialCommunityIcons name={name} size={size * 0.55} color={color} />
     </View>
   );
 }
@@ -204,7 +262,8 @@ export function Row({ children, style }: { children: ReactNode; style?: ViewStyl
   return <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}>{children}</View>;
 }
 
-export const styles = StyleSheet.create({
+function makeStyles() {
+  return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   screenPad: { padding: 16, paddingBottom: 48 },
   card: {
@@ -219,7 +278,7 @@ export const styles = StyleSheet.create({
   muted: { color: colors.muted, fontSize: 14 },
   label: { fontSize: 13, color: colors.muted, marginBottom: 4, fontWeight: '600' },
   input: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.input,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
@@ -247,3 +306,13 @@ export const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
 });
+}
+
+/** Estilos do tema atual (recalculados por applyTheme). */
+export const styles = makeStyles();
+
+export function applyTheme(p: Palette) {
+  Object.assign(colors, p);
+  Object.assign(styles, makeStyles());
+}
+

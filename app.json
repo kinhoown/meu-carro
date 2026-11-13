@@ -5,7 +5,7 @@
     "scheme": "meucarro",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
     "platforms": [
       "android"

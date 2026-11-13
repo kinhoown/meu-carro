@@ -1,7 +1,8 @@
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Text } from 'react-native';
-import { Button, Card, colors, Field, Muted, NumberField, Row, Screen, Title } from '@/components/ui';
+import { ActivityIndicator, Alert, Text, View } from 'react-native';
+import { Button, Card, CategoryIcon, colors, Field, Muted, NumberField, Row, Screen, Title } from '@/components/ui';
+import { maintenanceIcon } from '@/lib/icons';
 import { getVehicle, listMaintenances, setPlanEntry } from '@/lib/db';
 import { brToIso, formatKm, intToInput, isoToBr, maskDate, parseNumber, todayIso } from '@/lib/format';
 import { buildPlan, findTypeById, intervalText, nextFromLast, type PlanItem } from '@/lib/maintenance';
@@ -71,7 +72,12 @@ export default function PlanItemScreen() {
       <Stack.Screen options={{ title: type.name }} />
 
       <Card>
-        <Title>{type.name}</Title>
+        <Row style={{ gap: 12, marginBottom: 4 }}>
+          <CategoryIcon name={maintenanceIcon(type.id)} size={44} />
+          <View style={{ flex: 1 }}>
+            <Title>{type.name}</Title>
+          </View>
+        </Row>
         <Muted>Recomendação geral: {intervalText(type)}. Confira o manual do seu carro.</Muted>
         <Text style={{ color: colors.text, marginTop: 8 }}>
           {item.last

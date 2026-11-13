@@ -4,6 +4,7 @@ import { Alert, Text } from 'react-native';
 import { AppearancePicker } from '@/components/AppearancePicker';
 import { SelectModal, type Option } from '@/components/SelectModal';
 import { Button, Card, colors, Field, Muted, NumberField, Screen, SelectField, Title } from '@/components/ui';
+import { findCarPhoto } from '@/lib/carPhoto';
 import { createVehicle } from '@/lib/db';
 import { getBrands, getDetail, getModels, getYears, type FipeDetail, type FipeItem } from '@/lib/fipe';
 import { formatPlate, isValidPlate, normalizePlate, parseNumber } from '@/lib/format';
@@ -82,14 +83,22 @@ export default function NewVehicle() {
     if (!brand || !model || !year) return Alert.alert('Atenção', 'Escolha marca, modelo e ano.');
 
     const yearModel = detail?.AnoModelo ?? parseInt(year.label, 10);
+    const brandName = detail?.Marca ?? brand.label;
+    const modelName = detail?.Modelo ?? model.label;
+    const realYear = yearModel === ZERO_KM ? new Date().getFullYear() : Number.isFinite(yearModel) ? yearModel : null;
     setSaving(true);
     try {
+      // Foto real do modelo (até 6 s); se demorar, a tela do veículo busca depois.
+      const photo = await Promise.race([
+        findCarPhoto(brandName, modelName, realYear).catch(() => null),
+        new Promise<null>((r) => setTimeout(() => r(null), 6000)),
+      ]);
       const v = await createVehicle({
         plate: p,
         nickname: nickname.trim() || null,
-        brand: detail?.Marca ?? brand.label,
-        model: detail?.Modelo ?? model.label,
-        year_model: yearModel === ZERO_KM ? new Date().getFullYear() : Number.isFinite(yearModel) ? yearModel : null,
+        brand: brandName,
+        model: modelName,
+        year_model: realYear,
         fuel: detail?.Combustivel ?? null,
         fipe_code: detail?.CodigoFipe ?? null,
         fipe_value: detail?.Valor ?? null,
@@ -98,6 +107,7 @@ export default function NewVehicle() {
         current_km: Math.round(parseNumber(km) ?? 0),
         body: look.body,
         color: look.color,
+        ...(photo ? { photo_url: photo.url, photo_title: photo.title, photo_mode: 'foto' as const } : {}),
       });
       router.replace(`/vehicle/${v.id}`);
     } catch (e) {
@@ -152,7 +162,10 @@ export default function NewVehicle() {
 
       <Card>
         <Title>Aparência</Title>
-        <Muted>O tipo é sugerido pelo modelo. Escolha a cor do seu carro.</Muted>
+        <Muted>
+          O app busca uma foto real do modelo ao salvar. Este desenho aparece se não houver foto (e você pode
+          trocar depois).
+        </Muted>
         <AppearancePicker
           body={look.body}
           color={look.color}

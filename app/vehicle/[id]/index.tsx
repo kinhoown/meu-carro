@@ -1,14 +1,14 @@
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { AppearancePicker } from '@/components/AppearancePicker';
-import { CarArt } from '@/components/CarArt';
-import { Badge, Button, Card, colors, Muted, NumberField, Row, Screen, Segmented, Title } from '@/components/ui';
+import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
+import { VehicleImage } from '@/components/VehicleImage';
+import { VehicleImageEditor } from '@/components/VehicleImageEditor';
+import { Badge, Button, Card, CategoryIcon, colors, Muted, NumberField, Row, Screen, Segmented, Title } from '@/components/ui';
 import { deleteVehicle, getVehicle, listMaintenances, listMods, updateVehicle } from '@/lib/db';
 import { formatBRL, formatKm, formatPlate, intToInput, isoToBr, parseNumber } from '@/lib/format';
-import { buildPlan, intervalText, type DueLevel, type PlanItem } from '@/lib/maintenance';
+import { iconForName, maintenanceIcon } from '@/lib/icons';
+import { buildPlan, findType, intervalText, type DueLevel, type PlanItem } from '@/lib/maintenance';
 import type { Maintenance, Mod, Vehicle } from '@/lib/types';
-import { DEFAULT_COLOR, guessBody, type BodyType } from '@/lib/vehicleLook';
 
 type Tab = 'plano' | 'historico' | 'estetica';
 
@@ -21,7 +21,7 @@ export default function VehicleDetail() {
   const [savingKm, setSavingKm] = useState(false);
   const [tab, setTab] = useState<Tab>('plano');
   const [showHidden, setShowHidden] = useState(false);
-  const [editLook, setEditLook] = useState<{ body: BodyType; color: string } | null>(null);
+  const [editImage, setEditImage] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -50,8 +50,6 @@ export default function VehicleDetail() {
   const maintCost = items.reduce((sum, m) => sum + (m.cost ?? 0), 0);
   const modsCost = mods.filter((m) => m.status === 'feito').reduce((sum, m) => sum + (m.cost ?? 0), 0);
 
-  const body = vehicle?.body ?? (vehicle ? guessBody(vehicle.model) : 'hatch');
-  const color = vehicle?.color ?? DEFAULT_COLOR;
 
   async function saveKm() {
     const km = parseNumber(kmText);
@@ -64,17 +62,6 @@ export default function VehicleDetail() {
       Alert.alert('Erro', (e as Error).message);
     } finally {
       setSavingKm(false);
-    }
-  }
-
-  async function saveLook() {
-    if (!vehicle || !editLook) return;
-    try {
-      await updateVehicle(vehicle.id, editLook);
-      setVehicle({ ...vehicle, ...editLook });
-      setEditLook(null);
-    } catch (e) {
-      Alert.alert('Erro', (e as Error).message);
     }
   }
 
@@ -103,9 +90,9 @@ export default function VehicleDetail() {
       <Stack.Screen options={{ title: vehicle.nickname || formatPlate(vehicle.plate) }} />
 
       <Card>
-        <Pressable onPress={() => setEditLook({ body, color })} style={{ alignItems: 'center' }}>
-          <CarArt body={body} color={color} width={280} />
-          <Text style={{ color: colors.primary, fontSize: 12, marginTop: -4 }}>Trocar desenho / cor</Text>
+        <VehicleImage vehicle={vehicle} onUpdated={(patch) => setVehicle((v) => (v ? { ...v, ...patch } : v))} />
+        <Pressable onPress={() => setEditImage(true)} hitSlop={8} style={{ alignSelf: 'center', marginTop: 6 }}>
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>Trocar imagem</Text>
         </Pressable>
         <Text style={{ fontSize: 22, fontWeight: '800', color: colors.text, marginTop: 8 }}>
           {formatPlate(vehicle.plate)}
@@ -200,21 +187,29 @@ export default function VehicleDetail() {
                 onPress={() => router.push(`/vehicle/${vehicle.id}/maintenance?mid=${m.id}`)}
                 style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}
               >
-                <Row style={{ justifyContent: 'space-between' }}>
-                  <Text style={{ fontWeight: '700', color: colors.text, flex: 1 }}>{m.type}</Text>
-                  <Text style={{ color: colors.text }}>{formatBRL(m.cost)}</Text>
-                </Row>
-                <Row style={{ marginTop: 2 }}>
-                  <Badge
-                    text={m.kind === 'corretiva' ? 'Corretiva' : 'Preventiva'}
+                <Row style={{ alignItems: 'flex-start', gap: 12 }}>
+                  <CategoryIcon
+                    name={iconForName(m.type, findType(m.type)?.id)}
                     color={m.kind === 'corretiva' ? colors.danger : colors.primary}
                   />
-                  <Muted>
-                    {isoToBr(m.date)} · {formatKm(m.km)}
-                    {m.workshop ? ` · ${m.workshop}` : ''}
-                  </Muted>
+                  <View style={{ flex: 1 }}>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Text style={{ fontWeight: '700', color: colors.text, flex: 1 }}>{m.type}</Text>
+                      <Text style={{ color: colors.text }}>{formatBRL(m.cost)}</Text>
+                    </Row>
+                    <Row style={{ marginTop: 2, flexWrap: 'wrap' }}>
+                      <Badge
+                        text={m.kind === 'corretiva' ? 'Corretiva' : 'Preventiva'}
+                        color={m.kind === 'corretiva' ? colors.danger : colors.primary}
+                      />
+                      <Muted>
+                        {isoToBr(m.date)} · {formatKm(m.km)}
+                        {m.workshop ? ` · ${m.workshop}` : ''}
+                      </Muted>
+                    </Row>
+                    {m.description ? <Muted>{m.description}</Muted> : null}
+                  </View>
                 </Row>
-                {m.description ? <Muted>{m.description}</Muted> : null}
               </Pressable>
             ))
           )}
@@ -245,18 +240,26 @@ export default function VehicleDetail() {
                   onPress={() => router.push(`/vehicle/${vehicle.id}/mod?modId=${m.id}`)}
                   style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border }}
                 >
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <Text style={{ fontWeight: '700', color: colors.text, flex: 1 }}>{m.title}</Text>
-                    <Badge
-                      text={m.status === 'feito' ? 'Feito' : 'Planejado'}
+                  <Row style={{ alignItems: 'flex-start', gap: 12 }}>
+                    <CategoryIcon
+                      name={iconForName(m.category)}
                       color={m.status === 'feito' ? colors.success : colors.warning}
                     />
+                    <View style={{ flex: 1 }}>
+                      <Row style={{ justifyContent: 'space-between' }}>
+                        <Text style={{ fontWeight: '700', color: colors.text, flex: 1 }}>{m.title}</Text>
+                        <Badge
+                          text={m.status === 'feito' ? 'Feito' : 'Planejado'}
+                          color={m.status === 'feito' ? colors.success : colors.warning}
+                        />
+                      </Row>
+                      <Muted>
+                        {[m.category, m.brand, m.date ? isoToBr(m.date) : null, m.cost != null ? formatBRL(m.cost) : null]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </Muted>
+                    </View>
                   </Row>
-                  <Muted>
-                    {[m.category, m.brand, m.date ? isoToBr(m.date) : null, m.cost != null ? formatBRL(m.cost) : null]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </Muted>
                 </Pressable>
               ))
             )}
@@ -266,30 +269,25 @@ export default function VehicleDetail() {
 
       <Button title="Excluir veículo" variant="danger" onPress={confirmDelete} style={{ marginTop: 8 }} />
 
-      <Modal visible={!!editLook} animationType="slide" onRequestClose={() => setEditLook(null)}>
-        <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
-          <Title>Desenho do veículo</Title>
-          <Muted>Escolha o tipo de carroceria e a cor mais parecidos com o seu carro.</Muted>
-          <View style={{ height: 12 }} />
-          {editLook && <AppearancePicker body={editLook.body} color={editLook.color} onChange={setEditLook} />}
-          <View style={{ height: 20 }} />
-          <Button title="Salvar" onPress={saveLook} />
-          <Button title="Cancelar" variant="outline" onPress={() => setEditLook(null)} style={{ marginTop: 8 }} />
-        </ScrollView>
-      </Modal>
+      <VehicleImageEditor
+        vehicle={vehicle}
+        visible={editImage}
+        onClose={() => setEditImage(false)}
+        onSaved={(patch) => setVehicle((v) => (v ? { ...v, ...patch } : v))}
+      />
     </Screen>
   );
 }
 
-const LEVEL: Record<DueLevel, { label: string; color: string }> = {
+const LEVEL = (): Record<DueLevel, { label: string; color: string }> => ({
   vencida: { label: 'Vencida', color: colors.danger },
   proxima: { label: 'Em breve', color: colors.warning },
   ok: { label: 'Em dia', color: colors.success },
   definir: { label: 'Definir', color: colors.muted },
-};
+});
 
 function PlanRow({ p, onPress }: { p: PlanItem; onPress: () => void }) {
-  const lv = p.off ? { label: 'Não se aplica', color: colors.muted } : LEVEL[p.level];
+  const lv = p.off ? { label: 'Não se aplica', color: colors.muted } : LEVEL()[p.level];
   const next = [p.next_km != null ? formatKm(p.next_km) : null, p.next_date ? isoToBr(p.next_date) : null]
     .filter(Boolean)
     .join(' ou ');
@@ -302,6 +300,9 @@ function PlanRow({ p, onPress }: { p: PlanItem; onPress: () => void }) {
       onPress={onPress}
       style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border, opacity: p.off ? 0.6 : 1 }}
     >
+      <Row style={{ alignItems: 'flex-start', gap: 12 }}>
+      <CategoryIcon name={maintenanceIcon(p.type.id)} color={lv.color === colors.muted ? colors.primary : lv.color} />
+      <View style={{ flex: 1 }}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Text style={{ fontWeight: '600', color: colors.text, flex: 1 }}>{p.type.name}</Text>
         <Badge text={lv.label} color={lv.color} />
@@ -320,6 +321,8 @@ function PlanRow({ p, onPress }: { p: PlanItem; onPress: () => void }) {
           Última: {isoToBr(p.last.date)} · {formatKm(p.last.km)}
         </Muted>
       )}
+      </View>
+      </Row>
     </Pressable>
   );
 }

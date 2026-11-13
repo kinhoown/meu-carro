@@ -5,6 +5,7 @@ import { SelectModal } from '@/components/SelectModal';
 import { Button, Card, colors, Field, Muted, NumberField, Row, Screen, SelectField, Segmented } from '@/components/ui';
 import { deleteMod, getMod, saveMod } from '@/lib/db';
 import { brToIso, intToInput, isoToBr, maskDate, moneyToInput, parseNumber, todayIso } from '@/lib/format';
+import { iconForName } from '@/lib/icons';
 import type { ModStatus } from '@/lib/types';
 
 const CATEGORIES = [
@@ -25,7 +26,7 @@ const CATEGORIES = [
   'Câmera / sensor de ré',
   'Acessórios',
   'Outro',
-].map((c) => ({ value: c, label: c }));
+].map((c) => ({ value: c, label: c, icon: iconForName(c) }));
 
 export default function ModForm() {
   const { id, modId } = useLocalSearchParams<{ id: string; modId?: string }>();

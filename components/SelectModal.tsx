@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
-import { colors, styles } from './ui';
+import type { IconName } from '@/lib/icons';
+import { CategoryIcon, colors, styles } from './ui';
 
 export interface Option {
   value: string;
   label: string;
+  icon?: IconName;
 }
 
 /** Lista em tela cheia com busca, usada para marca/modelo/ano FIPE e tipo de manutenção. */
@@ -66,13 +68,17 @@ export function SelectModal({
                   onSelect(item);
                 }}
                 style={({ pressed }) => ({
-                  paddingVertical: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingVertical: item.icon ? 10 : 14,
                   borderBottomWidth: 1,
                   borderBottomColor: colors.border,
                   backgroundColor: pressed ? colors.border : 'transparent',
                 })}
               >
-                <Text style={{ fontSize: 16, color: colors.text }}>{item.label}</Text>
+                {item.icon && <CategoryIcon name={item.icon} size={34} />}
+                <Text style={{ fontSize: 16, color: colors.text, flex: 1 }}>{item.label}</Text>
               </Pressable>
             )}
             ListEmptyComponent={<Text style={styles.muted}>Nada encontrado.</Text>}

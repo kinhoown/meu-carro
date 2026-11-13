@@ -1,15 +1,14 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native';
 import { Button, Card, colors, Muted, Screen, Title } from '@/components/ui';
-import { CarArt } from '@/components/CarArt';
+import { VehicleImage } from '@/components/VehicleImage';
 import { UpdateBanner } from '@/components/UpdateBanner';
 import { installedVersion } from '@/lib/updater';
 import { listVehicles } from '@/lib/db';
 import { formatKm, formatPlate } from '@/lib/format';
-import { signOutAll } from '@/lib/google';
 import type { Vehicle } from '@/lib/types';
-import { guessBody } from '@/lib/vehicleLook';
 
 export default function Vehicles() {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
@@ -30,8 +29,8 @@ export default function Vehicles() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable onPress={() => signOutAll().catch((e) => Alert.alert('Erro', e.message))} hitSlop={12}>
-              <Text style={{ color: colors.primary, fontWeight: '600' }}>Sair</Text>
+            <Pressable onPress={() => router.push('/settings')} hitSlop={12} accessibilityLabel="Configurações">
+              <MaterialCommunityIcons name="cog-outline" size={24} color={colors.text} />
             </Pressable>
           ),
         }}
@@ -50,8 +49,14 @@ export default function Vehicles() {
         vehicles.map((v) => (
           <Pressable key={v.id} onPress={() => router.push(`/vehicle/${v.id}`)}>
             <Card>
-              <View style={{ alignItems: 'center', marginBottom: 4 }}>
-                <CarArt body={v.body ?? guessBody(v.model)} color={v.color} width={260} />
+              <View style={{ marginBottom: 8 }}>
+                <VehicleImage
+                  vehicle={v}
+                  height={150}
+                  onUpdated={(patch) =>
+                    setVehicles((list) => list?.map((x) => (x.id === v.id ? { ...x, ...patch } : x)) ?? null)
+                  }
+                />
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text }}>
@@ -70,8 +75,8 @@ export default function Vehicles() {
 
       <Button title="+ Adicionar veículo" onPress={() => router.push('/vehicle/new')} />
 
-      <Pressable onPress={() => router.push('/updates')} style={{ marginTop: 24, alignItems: 'center' }}>
-        <Text style={{ color: colors.primary, fontWeight: '600' }}>Atualizações do app</Text>
+      <Pressable onPress={() => router.push('/settings')} style={{ marginTop: 24, alignItems: 'center' }}>
+        <Text style={{ color: colors.primary, fontWeight: '600' }}>Configurações e atualizações</Text>
         <Muted>Versão {installedVersion().versionName}</Muted>
       </Pressable>
     </Screen>

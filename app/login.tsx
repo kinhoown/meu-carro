@@ -117,8 +117,8 @@ export default function Login() {
         </Text>
       </Pressable>
 
-      <Pressable onPress={() => router.push('/updates')} style={{ marginTop: 32, alignItems: 'center' }}>
-        <Text style={{ color: colors.muted }}>Atualizações do app</Text>
+      <Pressable onPress={() => router.push('/settings')} style={{ marginTop: 32, alignItems: 'center' }}>
+        <Text style={{ color: colors.muted }}>Configurações e atualizações</Text>
       </Pressable>
     </KeyboardAvoidingView>
   );

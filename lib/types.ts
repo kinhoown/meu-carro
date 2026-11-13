@@ -17,6 +17,11 @@ export interface Vehicle {
   /** Desenho do carro (adivinhado pelo modelo; o usuário pode trocar). */
   body?: BodyType | null;
   color?: string | null;
+  /** Foto real do modelo (Wikimedia). undefined = ainda não buscou. */
+  photo_url?: string | null;
+  photo_title?: string | null;
+  /** 'desenho' = o usuário prefere o desenho em vez da foto. */
+  photo_mode?: 'foto' | 'desenho' | null;
   /** Plano de manutenção: próxima troca de cada item, pela chave do tipo (lib/maintenance.ts). */
   plan?: Record<string, PlanEntry>;
   created_at: string;
